@@ -1,3 +1,5 @@
+# REDEPLOY AFTER CHANGES:
+# func azure functionapp publish numerai-bot --python
 #!/bin/bash
 set -e
 

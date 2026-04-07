@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 
 import azure.functions as func
 from numerapi import NumerAPI
@@ -291,5 +292,43 @@ def run_numeraibot(mytimer: func.TimerRequest) -> None:
 
 @app.route(route="run-now", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def run_now(req: func.HttpRequest) -> func.HttpResponse:
-    result = run_bot()
-    return func.HttpResponse(json.dumps(result), mimetype="application/json")
+    """
+    Returns 202 immediately and runs the bot in a background thread.
+    Check Azure Portal -> Monitor -> Invocations for live progress logs.
+    """
+    status_file = "/tmp/bot_status.json"
+
+    # If already running, return current status
+    if os.path.exists(status_file):
+        with open(status_file, "r") as f:
+            status = json.load(f)
+        if status.get("running"):
+            return func.HttpResponse(
+                json.dumps({"message": "Bot already running", "status": status}),
+                mimetype="application/json",
+                status_code=202,
+            )
+
+    def run_in_background():
+        with open(status_file, "w") as f:
+            json.dump({"running": True, "started_at": str(__import__("datetime").datetime.utcnow())}, f)
+        try:
+            result = run_bot()
+            with open(status_file, "w") as f:
+                json.dump({"running": False, "last_result": result}, f)
+        except Exception as e:
+            with open(status_file, "w") as f:
+                json.dump({"running": False, "error": str(e)}, f)
+
+    thread = threading.Thread(target=run_in_background, daemon=True)
+    thread.start()
+
+    return func.HttpResponse(
+        json.dumps({
+            "message": "Bot started in background. Check Azure Portal logs for progress.",
+            "monitor_url": "https://portal.azure.com -> Function Apps -> numerai-bot -> Monitor",
+            "status_tip": "Call /api/run-now again to check if still running."
+        }),
+        mimetype="application/json",
+        status_code=202,
+    )
