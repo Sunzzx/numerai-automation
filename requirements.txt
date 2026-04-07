@@ -1,2 +1,9 @@
 azure-functions
 numerapi
+numpy
+pandas
+scipy
+lightgbm
+scikit-learn
+joblib
+pyarrow
