@@ -4,6 +4,8 @@ numpy
 pandas
 scipy
 lightgbm
+xgboost
+optuna
 scikit-learn
 joblib
 pyarrow
