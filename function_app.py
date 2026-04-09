@@ -285,9 +285,31 @@ def run_bot() -> dict:
         return {"error": str(e)}
 
 
-@app.timer_trigger(schedule="0 0 */6 * * *", arg_name="mytimer", run_on_startup=True, use_monitor=True)
+@app.timer_trigger(schedule="0 * * * * *", arg_name="mytimer", run_on_startup=True, use_monitor=True)
 def run_numeraibot(mytimer: func.TimerRequest) -> None:
-    run_bot()
+    status_file = "/tmp/bot_status.json"
+
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, "r", encoding="utf-8") as f:
+                status = json.load(f)
+            if status.get("running"):
+                logging.info("Skipping timer run because a bot run is already active.")
+                return
+        except Exception:
+            # If status cannot be parsed, proceed and let run_bot handle errors.
+            pass
+
+    with open(status_file, "w", encoding="utf-8") as f:
+        json.dump({"running": True, "started_by": "timer"}, f)
+
+    try:
+        result = run_bot()
+        with open(status_file, "w", encoding="utf-8") as f:
+            json.dump({"running": False, "last_result": result}, f)
+    except Exception as e:
+        with open(status_file, "w", encoding="utf-8") as f:
+            json.dump({"running": False, "error": str(e)}, f)
 
 
 @app.route(route="run-now", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
